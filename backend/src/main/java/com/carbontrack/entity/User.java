@@ -26,7 +26,7 @@ public class User implements UserDetails {
     @Column(nullable = false, unique = true)
     private String username;
 
-    @Column(name = "password_hash", nullable = false)
+    @Column(name = "password_hash")
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
@@ -36,6 +36,17 @@ public class User implements UserDetails {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organization_id")
     private Organization organization;
+
+    @Column(name = "google_id", unique = true)
+    private String googleId;
+
+    @Builder.Default
+    @Column(name = "preferred_unit", length = 50)
+    private String preferredUnit = "METRIC";
+
+    @Builder.Default
+    @Column(name = "goals_visible")
+    private Boolean goalsVisible = true;
 
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;

@@ -40,6 +40,11 @@ import {
 
 const API_BASE = 'http://localhost:8081/api';
 
+// ─── Google OAuth2 Configuration ──────────────────────────────────────────────
+// Replace with your actual Client ID from https://console.cloud.google.com/
+// Authorized JavaScript origins: http://localhost:5173
+const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+
 // Factor coefficient values for client-side live calculator preview
 const EMISSION_COEFFICIENTS = {
   TRANSPORT: {
@@ -88,6 +93,36 @@ export default function App() {
   const [inviteCodeInput, setInviteCodeInput] = useState('');
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleReady, setGoogleReady] = useState(false);
+
+  // ── Initialize Google Identity Services ────────────────────────────────────
+  useEffect(() => {
+    const initGsi = () => {
+      if (window.google && window.google.accounts) {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleCredentialResponse,
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        });
+        setGoogleReady(true);
+      }
+    };
+    // GSI script may still be loading — poll until available
+    if (window.google && window.google.accounts) {
+      initGsi();
+    } else {
+      const interval = setInterval(() => {
+        if (window.google && window.google.accounts) {
+          clearInterval(interval);
+          initGsi();
+        }
+      }, 200);
+      return () => clearInterval(interval);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // App navigation
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -384,6 +419,91 @@ export default function App() {
     }
   };
 
+  // Called by Google Identity Services with a credential JWT
+  const handleGoogleCredentialResponse = async (googleResponse) => {
+    setAuthError('');
+    setGoogleLoading(true);
+    try {
+      // googleResponse.credential is the Google ID token (JWT)
+      // We forward it directly to our backend for validation
+      const res = await fetch(`${API_BASE}/auth/google-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken: googleResponse.credential,
+          email: null,
+          name: null
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || 'Google Authentication failed.');
+      }
+
+      const data = await res.json();
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify({
+        username: data.username,
+        role: data.role,
+        organizationName: data.organizationName
+      }));
+
+      setToken(data.token);
+      setUser({
+        username: data.username,
+        role: data.role,
+        organizationName: data.organizationName
+      });
+      setActiveTab('dashboard');
+    } catch (err) {
+      setAuthError(err.message);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async (mockEmail, mockName, mockId) => {
+    setAuthError('');
+    setAuthLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/google-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken: mockId || 'google_token_123',
+          email: mockEmail || 'kavin@google.com',
+          name: mockName || 'Kavin'
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || 'Google Authentication failed.');
+      }
+
+      const data = await res.json();
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify({
+        username: data.username,
+        role: data.role,
+        organizationName: data.organizationName
+      }));
+
+      setToken(data.token);
+      setUser({
+        username: data.username,
+        role: data.role,
+        organizationName: data.organizationName
+      });
+      setActiveTab('dashboard');
+    } catch (err) {
+      setAuthError(err.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -573,27 +693,27 @@ export default function App() {
     return (
       <div className="auth-container">
         <div className="auth-hero">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-            <Leaf size={40} color="#10b981" />
-            <h1 style={{ fontSize: '3rem', fontFamily: 'var(--font-display)', fontWeight: 800 }}>CarbonTrack</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+            <Leaf size={40} color="#14f0d4" />
+            <h1 style={{ fontSize: '3rem', fontFamily: 'var(--font-display)', fontWeight: 800, background: 'var(--grad-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>CarbonTrack</h1>
           </div>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '1.2rem', lineHeight: '1.6', maxWidth: '550px' }}>
-            A personal and organizational carbon footprint analytics and sustainability platform. 
-            Log daily activities, review visual analytics dashboards, configure goal reduction milestones, 
-            and bench-mark performance across the community scoreboard.
+          <p style={{ color: 'var(--text-secondary)', fontSize: '1.15rem', lineHeight: '1.7', maxWidth: '530px' }}>
+            A personal and organizational carbon footprint analytics and sustainability platform.
+            Log daily activities, review visual analytics dashboards, configure goal reduction milestones,
+            and benchmark performance across the community scoreboard.
           </p>
-          <div style={{ marginTop: '40px', display: 'flex', gap: '30px' }}>
+          <div style={{ marginTop: '44px', display: 'flex', gap: '36px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-green)' }}>50+</span>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>CO₂e reference values</span>
+              <span style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--color-teal)' }}>50+</span>
+              <span style={{ fontSize: '0.83rem', color: 'var(--text-muted)' }}>CO₂e reference values</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-cyan)' }}>Real-time</span>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Rule-engine updates</span>
+              <span style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--color-purple)' }}>Real-time</span>
+              <span style={{ fontSize: '0.83rem', color: 'var(--text-muted)' }}>Rule-engine updates</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-blue)' }}>Gamified</span>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Milestone badges</span>
+              <span style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--color-indigo)' }}>Gamified</span>
+              <span style={{ fontSize: '0.83rem', color: 'var(--text-muted)' }}>Milestone badges</span>
             </div>
           </div>
         </div>
@@ -634,19 +754,6 @@ export default function App() {
             {authMode === 'register' && (
               <>
                 <div className="input-group">
-                  <label>Role</label>
-                  <select
-                    className="input-field"
-                    value={roleInput}
-                    onChange={(e) => setRoleInput(e.target.value)}
-                  >
-                    <option value="USER">Standard User (Individual)</option>
-                    <option value="ORG_ADMIN">Organization Manager (Corporate)</option>
-                    <option value="ADMIN">Platform Admin</option>
-                  </select>
-                </div>
-
-                <div className="input-group">
                   <label>Invite Code (Optional)</label>
                   <input
                     className="input-field"
@@ -671,6 +778,64 @@ export default function App() {
             </button>
           </form>
 
+          {/* ── Google OAuth2 Sign-In ─────────────────────────────────────── */}
+          <div style={{ margin: '24px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ flex: 1, height: '1px', background: 'rgba(0,230,200,0.12)' }} />
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>or continue with</span>
+            <div style={{ flex: 1, height: '1px', background: 'rgba(0,230,200,0.12)' }} />
+          </div>
+
+          <button
+            id="google-signin-btn"
+            onClick={() => {
+              if (!googleReady) {
+                setAuthError('Google Sign-In is loading. Please try again in a moment.');
+                return;
+              }
+              setGoogleLoading(true);
+              setAuthError('');
+              window.google.accounts.id.prompt((notification) => {
+                setGoogleLoading(false);
+                if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+                  setAuthError('Google One-Tap was blocked by the browser. Please allow popups or try regular login.');
+                }
+              });
+            }}
+            disabled={googleLoading}
+            style={{
+              width: '100%',
+              padding: '13px 20px',
+              borderRadius: '12px',
+              border: '1px solid rgba(0,230,200,0.18)',
+              background: 'rgba(255,255,255,0.04)',
+              color: 'var(--text-primary)',
+              fontSize: '0.93rem',
+              fontWeight: 600,
+              fontFamily: 'var(--font-sans)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+          >
+            {googleLoading ? (
+              <RefreshCw className="animate-spin" size={18} />
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 48 48">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+              </svg>
+            )}
+            {authMode === 'login' ? 'Sign in with Google' : 'Sign up with Google'}
+          </button>
+
+
           <div style={{ marginTop: '24px', textAlign: 'center' }}>
             <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
               {authMode === 'login' ? "Don't have an account? " : "Already have an account? "}
@@ -694,9 +859,9 @@ export default function App() {
     <div className="app-container">
       {/* Sidebar Panel */}
       <div className="sidebar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '30px' }}>
-          <Leaf size={28} color="#10b981" />
-          <h2 style={{ fontSize: '1.5rem', fontFamily: 'var(--font-display)', fontWeight: 800 }}>CarbonTrack</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '30px' }}>
+          <Leaf size={26} color="#14f0d4" />
+          <h2 style={{ fontSize: '1.4rem', fontFamily: 'var(--font-display)', fontWeight: 800, background: 'var(--grad-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>CarbonTrack</h2>
         </div>
 
         <div className="nav-links">
@@ -725,18 +890,18 @@ export default function App() {
           )}
         </div>
 
-        <div style={{ marginTop: 'auto', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px' }}>
+        <div style={{ marginTop: 'auto', borderTop: '1px solid rgba(139, 92, 246, 0.12)', paddingTop: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--grad-primary)', display: 'flex', alignItems: 'center', justifyContents: 'center', color: '#07090e', fontWeight: 'bold', textTransform: 'uppercase', paddingLeft: '11px' }}>
+            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--grad-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.9rem', boxShadow: '0 0 12px rgba(139,92,246,0.4)' }}>
               {user?.username?.charAt(0)}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              <span style={{ fontSize: '0.9rem', fontWeight: 'semibold', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{user?.username}</span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{user?.role === 'ORG_ADMIN' ? 'Org Manager' : user?.role}</span>
+              <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{user?.username}</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{user?.role === 'ORG_ADMIN' ? 'Org Manager' : user?.role}</span>
             </div>
           </div>
 
-          <button className="btn-secondary" onClick={handleLogout} style={{ width: '100%', padding: '8px 16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+          <button onClick={handleLogout} style={{ width: '100%', padding: '9px 16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.18)', borderRadius: '10px', color: 'var(--color-purple)', cursor: 'pointer', transition: 'var(--transition)', fontSize: '0.88rem', fontWeight: 500 }}>
             <LogOut size={16} />
             <span>Sign Out</span>
           </button>

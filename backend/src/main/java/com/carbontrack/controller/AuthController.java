@@ -28,6 +28,11 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(request));
     }
 
+    @PostMapping("/google-login")
+    public ResponseEntity<AuthResponse> googleLogin(@Valid @RequestBody com.carbontrack.dto.GoogleLoginRequest request) {
+        return ResponseEntity.ok(authService.googleLogin(request));
+    }
+
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refresh(@RequestBody Map<String, String> request) {
         String refreshToken = request.get("refreshToken");

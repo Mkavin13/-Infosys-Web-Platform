@@ -4,9 +4,11 @@ import com.carbontrack.dto.ActivityLogDto;
 import com.carbontrack.dto.ActivityLogRequest;
 import com.carbontrack.entity.ActivityCategory;
 import com.carbontrack.entity.ActivityLog;
+import com.carbontrack.entity.Role;
 import com.carbontrack.entity.User;
 import com.carbontrack.exception.ResourceNotFoundException;
 import com.carbontrack.repository.ActivityLogRepository;
+import com.carbontrack.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ActivityLogService {
 
     private final ActivityLogRepository activityLogRepository;
+    private final UserRepository userRepository;
     private final EmissionCalculationService emissionCalculationService;
     private final BadgeService badgeService;
 
@@ -54,7 +57,18 @@ public class ActivityLogService {
 
     @Transactional(readOnly = true)
     public Page<ActivityLogDto> getLogs(User user, Pageable pageable) {
-        return activityLogRepository.findByUserIdOrderByLogDateDesc(user.getId(), pageable)
+        User persistentUser = userRepository.findById(user.getId()).orElse(user);
+        if (persistentUser.getRole() == Role.ADMIN) {
+            return activityLogRepository.findAllByOrderByLogDateDesc(pageable)
+                    .map(this::mapToDto);
+        } else if (persistentUser.getRole() == Role.ORG_ADMIN) {
+            if (persistentUser.getOrganization() != null) {
+                return activityLogRepository.findByUserOrganizationIdOrderByLogDateDesc(
+                        persistentUser.getOrganization().getId(), pageable)
+                        .map(this::mapToDto);
+            }
+        }
+        return activityLogRepository.findByUserIdOrderByLogDateDesc(persistentUser.getId(), pageable)
                 .map(this::mapToDto);
     }
 

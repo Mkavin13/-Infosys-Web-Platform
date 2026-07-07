@@ -18,6 +18,10 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, Long> 
 
     Page<ActivityLog> findByUserIdOrderByLogDateDesc(Long userId, Pageable pageable);
 
+    Page<ActivityLog> findAllByOrderByLogDateDesc(Pageable pageable);
+
+    Page<ActivityLog> findByUserOrganizationIdOrderByLogDateDesc(Long orgId, Pageable pageable);
+
     @Query("SELECT SUM(a.calculatedCo2e) FROM ActivityLog a WHERE a.user.id = :userId")
     Double getTotalCo2eByUserId(@Param("userId") Long userId);
 
