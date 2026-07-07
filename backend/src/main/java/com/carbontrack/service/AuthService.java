@@ -113,19 +113,47 @@ public class AuthService {
 
     @Transactional
     public AuthResponse googleLogin(com.carbontrack.dto.GoogleLoginRequest request) {
-        // Resolve email/username
-        String email = request.getEmail();
-        if (email == null || email.isBlank()) {
-            email = "google_" + request.getIdToken().substring(Math.max(0, request.getIdToken().length() - 8)) + "@example.com";
+        String idToken = request.getIdToken();
+        
+        // Decode the Google JWT to extract sub (Google User ID) and email
+        String googleSub = null;
+        String email = null;
+        String name = null;
+        
+        try {
+            // JWT has 3 parts: header.payload.signature
+            String[] parts = idToken.split("\\.");
+            if (parts.length >= 2) {
+                String payload = new String(java.util.Base64.getUrlDecoder().decode(parts[1]));
+                // Simple JSON parsing without external library
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                com.fasterxml.jackson.databind.JsonNode json = mapper.readTree(payload);
+                
+                googleSub = json.has("sub") ? json.get("sub").asText() : null;
+                email = json.has("email") ? json.get("email").asText() : null;
+                name = json.has("name") ? json.get("name").asText() : null;
+            }
+        } catch (Exception e) {
+            // If decoding fails, use the token as-is (fallback for mock tokens)
+            googleSub = idToken;
         }
         
-        String username = email.split("@")[0];
-
-        // Find or create User by googleId
-        User user = userRepository.findByGoogleId(request.getIdToken())
+        // Fallback if sub extraction failed
+        if (googleSub == null || googleSub.isBlank()) {
+            googleSub = idToken.length() > 200 ? idToken.substring(0, 200) : idToken;
+        }
+        
+        // Resolve username from email or name
+        String baseUsername = email != null ? email.split("@")[0] 
+                           : name != null ? name.replaceAll("\\s+", "_").toLowerCase()
+                           : "google_user";
+        
+        final String finalGoogleSub = googleSub;
+        
+        // Find or create User by googleId (stored as the short 'sub' value)
+        User user = userRepository.findByGoogleId(finalGoogleSub)
                 .orElseGet(() -> {
                     // Make sure username doesn't conflict
-                    String baseUsername = request.getEmail() != null ? request.getEmail().split("@")[0] : "google_user";
                     String resolvedUsername = baseUsername;
                     int count = 1;
                     while (userRepository.existsByUsername(resolvedUsername)) {
@@ -134,7 +162,7 @@ public class AuthService {
 
                     User newUser = User.builder()
                             .username(resolvedUsername)
-                            .googleId(request.getIdToken())
+                            .googleId(finalGoogleSub)
                             .role(Role.USER)
                             .preferredUnit("METRIC")
                             .goalsVisible(true)

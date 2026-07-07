@@ -37,7 +37,7 @@ public class User implements UserDetails {
     @JoinColumn(name = "organization_id")
     private Organization organization;
 
-    @Column(name = "google_id", unique = true)
+    @Column(name = "google_id", columnDefinition = "TEXT")
     private String googleId;
 
     @Builder.Default
