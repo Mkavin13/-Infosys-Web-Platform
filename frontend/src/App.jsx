@@ -43,7 +43,7 @@ const API_BASE = 'http://localhost:8081/api';
 // ─── Google OAuth2 Configuration ──────────────────────────────────────────────
 // Replace with your actual Client ID from https://console.cloud.google.com/
 // Authorized JavaScript origins: http://localhost:5173
-const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '187334985650-4i3chk5boohhlta7cmlop4eeike7hrbo.apps.googleusercontent.com';
 
 // Factor coefficient values for client-side live calculator preview
 const EMISSION_COEFFICIENTS = {
